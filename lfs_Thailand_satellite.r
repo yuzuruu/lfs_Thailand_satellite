@@ -1,77 +1,201 @@
+#################################################################### 
+# All about analyses using MS global ML building footprints
+# 8th. June 2022
+# Yuzuru Utsunomiya
+# Source: 
+# https://github.com/microsoft/GlobalMLBuildingFootprints#will-there-be-more-data-coming-for-other-geographies
+# Projection: WGS84
+# ETSG: 4326
+# license: https://opendatacommons.org/licenses/odbl/
+#################################################################### 
+
+
+# ---- read.library ----
 library(tidyverse)
 library(sf)
-
-object_Thailand <- sf::st_read("./object/Thailand.geojsonl")
-
-
-hoge <- 
-  object_Thailand[c(1:10),]
-
-hogehoge <- 
-  hoge %>% 
-  mutate(
-    area = sf::st_area(.),
-    lon = st_coordinates(sf::st_centroid(.))[,1],
-    lat = st_coordinates(sf::st_centroid(.))[,2]
-  )
-
-
-
-
-
-# 位置情報から住所を取得する関数
-# 下記に書いてあったコードをほぼコピペ
+library(furrr)
+#
+#
+##
+### END ---
+##
+#
+# ---- read.data ----
+# read object data
+# object_Thailand_data <- sf::st_read("./object/Thailand.geojsonl")
+# object_Vietnam_data <- sf::st_read("./object/Vietnam.geojsonl")
+# object_Cambodia_data <- sf::st_read("./object/Cambodia.geojsonl")
+# Remove objects when not in use
+# rm(object_Thailand)
+# rm(object_Vietnam)
+# rm(object_Cambodia)
+# read shapefiles by country
+shp_Thailand <- 
+  sf::st_read(
+    "./shapefiles/THA_adm3.shp", 
+    options = "ENCODING=UTF-8", 
+    stringsAsFactors=FALSE
+    ) %>% 
+  dplyr::mutate_if(
+    is.character, 
+    enc2utf8
+    )
+# ---- read.function ----
+# a function find address from lat / lon
+# We thank following links.
 # https://qiita.com/nozma/items/808bce2f496eabd50ff1
 # https://qiita.com/uri/items/69b2c05f7b3a21d3aad3
-find_city <- function(sp_polygon = df, lon = lon, lat = lat) {
-  # ある座標が含まれるポリゴンを見つける
+find_city <- function(sp_polygon = df, lon = lon, lat = lat){
+  # find a polygon containing a certain pair of lon / lat
   which.row <- 
-    sf::st_contains(sp_polygon, sf::st_point(c(lon, lat)), sparse = FALSE) %>%  
+    sf::st_contains(
+      sp_polygon, 
+      sf::st_point(
+        c(
+          lon, 
+          lat
+          )
+        ), 
+      sparse = FALSE
+      ) %>%  
     grep(TRUE, .)
-  # ある座標が含まれるポリゴンがなかった場合にメッセージを残す
+  # If not, leave a warning message
   if (identical(which.row, integer(0)) == TRUE) {
-    message("指定した座標がポリゴンに含まれません")
-    # 座標があれば、座標に付帯する情報を引き出す
+    # message("指定した座標がポリゴンに含まれません")
+    return(NA)
+    # If exist, obtain information of coordinates
   } else {
     geos <- 
       sp_polygon[which.row, ] %>%
-      # factor型なら文字列character型に変換してね。
-      # 後でいろいろ面倒だから。
+      # transform from factor to character
       dplyr::mutate_if(
         is.factor, 
         as.character
       ) %>% 
-      # 1行目から必要な箇所だけ使うよ
+      # obtain necessary part of the shapefile
       dplyr::mutate_at(
-        dplyr::vars(N03_001:N03_004), 
+        dplyr::vars(NAME_1, NAME_2, NAME_3), 
         dplyr::funs(
           dplyr::if_else(
-            # 値があるかな？
+            # Is it NA?
             condition = is.na(.),
-            # NAだったら空白を
+            # if NA, return blank
             true = "", 
-            # NAじゃなかったら使いましょ
+            # if not, use it
             false = .
           )
         )
       )
-    # データフレームをつくる
-    # この市区町村も、ESRIが提供するシェープファイルがスマート
-    # あとでJCODEを使って結合したほうがよさげ
+    # make a dataset of administrative boundaries
+    # Names and IDs are obtained from shapefiles
     res <- tibble::data_frame(
-      # 市区町村コードを取得する
-      city_code = geos$N03_007,
-      # 市区町村名を結合・取得する
-      # 001：都道府県名
-      prefecture_name = geos$N03_001,
-      # 002：所管する振興局名（北海道のみ）
-      # 003：郡（政令指定都市は市）名
-      # 004：市区町村名
-      city_name = paste0(geos$N03_002, geos$N03_003, geos$N03_004)
+      city_code = geos$ID_1,
+      district_code = geos$ID_2,
+      town_code = geos$ID_3,
+      province_name = geos$NAME_1,
+      district_name = geos$NAME_2,
+      town_name = geos$NAME_3
     )
-    # 返された結果を眺める。動作確認用なので、なければないでもいい。
+    # for inspecting function movement
     print(res)
-    # 結果を返す
+    # return results
     return(res)
   }
 }
+#
+#
+##
+### END ---
+##
+#
+# 
+# ---- make.area.data ----
+
+# # WARNING
+# # This process needs long computation periods.
+# object_Thailand_lat_lon <- 
+#   # provide data
+#   object_Thailand_data%>%
+#   # evaluate the geometries whether they are validated 
+#   # If not, functions below will not work.
+#   # In detail, refer to the following page.
+#   # https://gis.stackexchange.com/questions/404385/r-sf-some-edges-are-crossing-in-a-multipolygon-how-to-make-it-valid-when-using
+#   dplyr::mutate(
+#     true_false = sf::st_is_valid(.)
+#     ) %>%
+#   # select vali data
+#   dplyr::filter(true_false == "TRUE") %>%
+#   # add longitude and latitude
+#   dplyr::mutate(
+#     area = sf::st_area(.),
+#     lon = st_coordinates(sf::st_centroid(.))[,1],
+#     lat = st_coordinates(sf::st_centroid(.))[,2]
+#     )
+# saveRDS(object_Thailand_lat_lon, "object_Thailand_lat_lon.rds")
+# rm(object_Thailand_lat_lon)
+# gc()
+# gc()
+
+
+object_Thailand_lat_lon <- 
+  readRDS("object_Thailand_lat_lon.rds") %>% 
+  dplyr::slice(1:24476000) %>% 
+  dplyr::mutate(
+    id = c(1:nrow(object_Thailand_lat_lon)),
+    group = paste0("group",rep(c(1:244760), times = nrow(object_Thailand_lat_lon)/244760))) %>%
+  dplyr::select(-true_false, -area) %>% 
+  sf::st_drop_geometry() 
+
+plan(multisession)
+object_Thailand_address <-
+  object_Thailand_lat_lon %>%
+  filter(group == "group1") %>% 
+  # obtain area information from the shapefile
+  dplyr::mutate(
+    # using furrr() package enables us to concurrent computing!!
+    # It raises up computation period dramatically!!
+    # In detail, refer to the following page.
+    # https://blog.atusy.net/2018/12/06/furrr/
+    # Previously, we used to use the following code with purrr::map2_dfr()
+    # area_info = purrr::map2_dfr(
+    area_info = furrr::future_map2(
+      .x = lon,
+      .y = lat,
+      ~
+        find_city(
+          sp_polygon = shp_Thailand,
+          lon = .x,
+          lat = .y
+          )
+      )
+    ) %>%
+  tibble()
+object_Thailand_address
+object_Thailand_address$area_info
+
+
+saveRDS(object_Thailand_address, "object_Thailand_address.rds")
+rm(object_Thailand_address)
+gc()
+gc()
+
+object_Thailand_address <- readRDS("object_Thailand_address.rds")
+
+
+
+# competed!!
+object_Thailand <- 
+  bind_cols(
+    object_Thailand_address$area_info, 
+    object_Thailand_data
+    ) %>% 
+  select(-area_info, -true_false)
+# save the completed data
+saveRDS(object_Thailand, "object_Thailand.rds")
+
+#
+#
+##
+### END ---
+##
+#
