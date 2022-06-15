@@ -32,7 +32,8 @@ library(furrr)
 # read shapefiles by country
 shp_Thailand <- 
   sf::st_read(
-    "./shapefiles/THA_adm3.shp", 
+    # "./shapefiles/THA_adm3.shp", 
+    "./shapefiles/THA_adm1.shp", 
     options = "ENCODING=UTF-8", 
     stringsAsFactors=FALSE
     ) %>% 
@@ -74,7 +75,8 @@ find_city <- function(sp_polygon = df, lon = lon, lat = lat){
       ) %>% 
       # obtain necessary part of the shapefile
       dplyr::mutate_at(
-        dplyr::vars(NAME_1, NAME_2, NAME_3), 
+        # dplyr::vars(NAME_1, NAME_2, NAME_3), 
+        dplyr::vars(NAME_1), 
         dplyr::funs(
           dplyr::if_else(
             # Is it NA?
@@ -89,12 +91,12 @@ find_city <- function(sp_polygon = df, lon = lon, lat = lat){
     # make a dataset of administrative boundaries
     # Names and IDs are obtained from shapefiles
     res <- tibble::data_frame(
-      city_code = geos$ID_1,
-      district_code = geos$ID_2,
-      town_code = geos$ID_3,
+      province_code = geos$ID_1,
+      # district_code = geos$ID_2,
+      # town_code = geos$ID_3,
       province_name = geos$NAME_1,
-      district_name = geos$NAME_2,
-      town_name = geos$NAME_3
+      # district_name = geos$NAME_2,
+      # town_name = geos$NAME_3
     )
     # for inspecting function movement
     print(res)
@@ -136,20 +138,20 @@ find_city <- function(sp_polygon = df, lon = lon, lat = lat){
 # gc()
 # gc()
 
-
+# read
 object_Thailand_lat_lon <- 
   readRDS("object_Thailand_lat_lon.rds") %>% 
-  dplyr::slice(1:24476000) %>% 
   dplyr::mutate(
-    id = c(1:nrow(object_Thailand_lat_lon)),
-    group = paste0("group",rep(c(1:244760), times = nrow(object_Thailand_lat_lon)/244760))) %>%
+    id = c(1:nrow(.))) %>%
   dplyr::select(-true_false, -area) %>% 
   sf::st_drop_geometry() 
 
+# set concurrent computing plan
+# multisession: use CPUs as many as possible
 plan(multisession)
+# obtain address from shapefiles
 object_Thailand_address <-
   object_Thailand_lat_lon %>%
-  filter(group == "group1") %>% 
   # obtain area information from the shapefile
   dplyr::mutate(
     # using furrr() package enables us to concurrent computing!!
