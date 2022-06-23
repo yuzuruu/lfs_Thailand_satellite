@@ -137,61 +137,101 @@ find_city <- function(sp_polygon = df, lon = lon, lat = lat){
 # rm(object_Thailand_lat_lon)
 # gc()
 # gc()
-
+# 
 # read
+# object_Thailand_lat_lon <- 
+#   readRDS("object_Thailand_lat_lon.rds") %>% 
+#   dplyr::mutate(
+#     id = c(1:nrow(.))) %>%
+#   dplyr::select(-true_false, -area) %>% 
+#   sf::st_drop_geometry() 
+# 
+# # set concurrent computing plan
+# # multisession: use CPUs as many as possible
+# plan(multisession)
+# # obtain address from shapefiles
+# object_Thailand_address <-
+#   object_Thailand_lat_lon %>%
+#   # obtain area information from the shapefile
+#   dplyr::mutate(
+#     # using furrr() package enables us to concurrent computing!!
+#     # It raises up computation period dramatically!!
+#     # In detail, refer to the following page.
+#     # https://blog.atusy.net/2018/12/06/furrr/
+#     # Previously, we used to use the following code with purrr::map2_dfr()
+#     # area_info = purrr::map2_dfr(
+#     area_info = furrr::future_map2(
+#       .x = lon,
+#       .y = lat,
+#       ~
+#         find_city(
+#           sp_polygon = shp_Thailand,
+#           lon = .x,
+#           lat = .y
+#           )
+#       )
+#     ) %>%
+#   tibble()
+# object_Thailand_address
+# object_Thailand_address$area_info
+# 
+# saveRDS(object_Thailand_address, "object_Thailand_address.rds")
+# rm(object_Thailand_address)
+# gc()
+# gc()
+
+object_Thailand_address <- 
+  readRDS("object_Thailand_address_001.rds")
+# transform lists of province name into data frame
+object_Thailand_address_code_province <- 
+  object_Thailand_address %>% 
+  # remove data containing NA in list
+  # to avoid error / malfunction
+  dplyr::filter(
+    purrr::map_lgl(
+      area_info, 
+      is_tibble
+      )
+    ) %>% 
+  # add necessary variables
+  dplyr::mutate(
+    code = dplyr::pull(
+      dplyr::bind_rows(
+        area_info
+        ), 
+      var = 1 # province code
+      ),
+    province = pull(
+      dplyr::bind_rows(
+        area_info
+        ), 
+      var = 2 # province name
+      )
+  ) %>% 
+  dplyr::select(-area_info, -lon, -lat)
+# 
+# competed!!
+# read the lat-lon data with geometry again
+# To save drive space, we removed it once before.
 object_Thailand_lat_lon <- 
   readRDS("object_Thailand_lat_lon.rds") %>% 
+  # add id
   dplyr::mutate(
-    id = c(1:nrow(.))) %>%
-  dplyr::select(-true_false, -area) %>% 
-  sf::st_drop_geometry() 
-
-# set concurrent computing plan
-# multisession: use CPUs as many as possible
-plan(multisession)
-# obtain address from shapefiles
-object_Thailand_address <-
-  object_Thailand_lat_lon %>%
-  # obtain area information from the shapefile
-  dplyr::mutate(
-    # using furrr() package enables us to concurrent computing!!
-    # It raises up computation period dramatically!!
-    # In detail, refer to the following page.
-    # https://blog.atusy.net/2018/12/06/furrr/
-    # Previously, we used to use the following code with purrr::map2_dfr()
-    # area_info = purrr::map2_dfr(
-    area_info = furrr::future_map2(
-      .x = lon,
-      .y = lat,
-      ~
-        find_city(
-          sp_polygon = shp_Thailand,
-          lon = .x,
-          lat = .y
-          )
-      )
-    ) %>%
-  tibble()
-object_Thailand_address
-object_Thailand_address$area_info
-
-
-saveRDS(object_Thailand_address, "object_Thailand_address.rds")
-rm(object_Thailand_address)
-gc()
-gc()
-
-object_Thailand_address <- readRDS("object_Thailand_address.rds")
-
-
-
-# competed!!
+    id = c(1:nrow(.))) 
+# combine the lat-lon data and province
 object_Thailand <- 
-  bind_cols(
-    object_Thailand_address$area_info, 
-    object_Thailand_data
+  object_Thailand_lat_lon %>%
+  # pick up target observations
+  # We need to remove some data data with disorder before analysis.
+  dplyr::filter(
+    id %in% object_Thailand_address_code_province$id
     ) %>% 
-  select(-area_info, -true_false)
+  # join
+  dplyr::left_join(
+    object_Thailand_address_code_province, 
+    by = c("id")
+    ) %>% 
+  dplyr::tibble()
 # save the completed data
 saveRDS(object_Thailand, "object_Thailand.rds")
 
