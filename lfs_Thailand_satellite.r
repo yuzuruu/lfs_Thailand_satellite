@@ -1,6 +1,7 @@
 #################################################################### 
 # All about analyses using MS global ML building footprints
-# 8th. June 2022
+# Est. 8th. June 2022
+# Revised 2nd. August 2022
 # Yuzuru Utsunomiya
 # Source: 
 # https://github.com/microsoft/GlobalMLBuildingFootprints#will-there-be-more-data-coming-for-other-geographies
@@ -14,6 +15,10 @@
 library(tidyverse)
 library(sf)
 library(furrr)
+library(rsample)
+# set concurrent computing plan
+# multisession: use CPUs as many as possible
+plan(multisession)
 #
 #
 ##
@@ -36,11 +41,11 @@ shp_Thailand <-
     "./shapefiles/THA_adm1.shp", 
     options = "ENCODING=UTF-8", 
     stringsAsFactors=FALSE
-    ) %>% 
+  ) %>% 
   dplyr::mutate_if(
     is.character, 
     enc2utf8
-    )
+  )
 # ---- read.function ----
 # a function find address from lat / lon
 # We thank following links.
@@ -55,10 +60,10 @@ find_city <- function(sp_polygon = df, lon = lon, lat = lat){
         c(
           lon, 
           lat
-          )
-        ), 
+        )
+      ), 
       sparse = FALSE
-      ) %>%  
+    ) %>%  
     grep(TRUE, .)
   # If not, leave a warning message
   if (identical(which.row, integer(0)) == TRUE) {
@@ -112,128 +117,168 @@ find_city <- function(sp_polygon = df, lon = lon, lat = lat){
 #
 # 
 # ---- make.area.data ----
+# WARNING
+# This process needs long computation periods.
+object_Thailand_lat_lon <-
+  # provide data
+  object_Thailand_data%>%
+  # evaluate the geometries whether they are validated
+  # If not, functions below will not work.
+  # In detail, refer to the following page.
+  # https://gis.stackexchange.com/questions/404385/r-sf-some-edges-are-crossing-in-a-multipolygon-how-to-make-it-valid-when-using
+  dplyr::mutate(
+    true_false = sf::st_is_valid(.)
+    ) %>%
+  # select vali data
+  dplyr::filter(true_false == "TRUE") %>%
+  # add longitude and latitude
+  dplyr::mutate(
+    area = sf::st_area(.),
+    lon = st_coordinates(sf::st_centroid(.))[,1],
+    lat = st_coordinates(sf::st_centroid(.))[,2]
+    )
+saveRDS(object_Thailand_lat_lon, "object_Thailand_lat_lon.rds")
+rm(object_Thailand_lat_lon)
+gc()
+gc()
 
-# # WARNING
-# # This process needs long computation periods.
-# object_Thailand_lat_lon <- 
-#   # provide data
-#   object_Thailand_data%>%
-#   # evaluate the geometries whether they are validated 
-#   # If not, functions below will not work.
-#   # In detail, refer to the following page.
-#   # https://gis.stackexchange.com/questions/404385/r-sf-some-edges-are-crossing-in-a-multipolygon-how-to-make-it-valid-when-using
-#   dplyr::mutate(
-#     true_false = sf::st_is_valid(.)
-#     ) %>%
-#   # select vali data
-#   dplyr::filter(true_false == "TRUE") %>%
-#   # add longitude and latitude
-#   dplyr::mutate(
-#     area = sf::st_area(.),
-#     lon = st_coordinates(sf::st_centroid(.))[,1],
-#     lat = st_coordinates(sf::st_centroid(.))[,2]
-#     )
-# saveRDS(object_Thailand_lat_lon, "object_Thailand_lat_lon.rds")
-# rm(object_Thailand_lat_lon)
-# gc()
-# gc()
-# 
 # read
-# object_Thailand_lat_lon <- 
-#   readRDS("object_Thailand_lat_lon.rds") %>% 
-#   dplyr::mutate(
-#     id = c(1:nrow(.))) %>%
-#   dplyr::select(-true_false, -area) %>% 
-#   sf::st_drop_geometry() 
-# 
-# # set concurrent computing plan
-# # multisession: use CPUs as many as possible
-# plan(multisession)
-# # obtain address from shapefiles
-# object_Thailand_address <-
-#   object_Thailand_lat_lon %>%
-#   # obtain area information from the shapefile
-#   dplyr::mutate(
-#     # using furrr() package enables us to concurrent computing!!
-#     # It raises up computation period dramatically!!
-#     # In detail, refer to the following page.
-#     # https://blog.atusy.net/2018/12/06/furrr/
-#     # Previously, we used to use the following code with purrr::map2_dfr()
-#     # area_info = purrr::map2_dfr(
-#     area_info = furrr::future_map2(
-#       .x = lon,
-#       .y = lat,
-#       ~
-#         find_city(
-#           sp_polygon = shp_Thailand,
-#           lon = .x,
-#           lat = .y
-#           )
-#       )
-#     ) %>%
-#   tibble()
-# object_Thailand_address
-# object_Thailand_address$area_info
-# 
-# saveRDS(object_Thailand_address, "object_Thailand_address.rds")
-# rm(object_Thailand_address)
-# gc()
-# gc()
+object_Thailand_sample <- 
+  readRDS("object_Thailand_lat_lon.rds") %>% 
+  dplyr::mutate(
+    id = c(1:nrow(.))) %>%
+  dplyr::select(-true_false, -area) %>% 
+  sf::st_drop_geometry() 
 
-object_Thailand_address <- 
-  readRDS("object_Thailand_address_001.rds")
-# transform lists of province name into data frame
-object_Thailand_address_code_province <- 
-  object_Thailand_address %>% 
-  # remove data containing NA in list
-  # to avoid error / malfunction
+# %>% 
+#   dplyr::sample_frac(size = 0.05)
+
+# primitive but prudent way
+set.seed(123)
+# obtain group id
+# NOTE
+# We need to separate the data without surplus
+# This time, our data can be divided by an appropriate number (16).
+idx <- sample(1:nrow(object_Thailand_sample)/16)
+cv <- 
+  split(
+    idx, 
+    ceiling(
+      seq_along(idx) / floor(length(idx) / 16
+      )
+    )
+  ) %>% 
+  bind_rows() %>% 
+  as_tibble() %>% 
+  data.table::setnames(
+    c(
+      "group01","group02","group03","group04","group05","group06","group07","group08","group09","group10",
+      "group11","group12","group13","group14","group15","group16"
+    )
+  ) %>% 
+  tidyr::pivot_longer(
+    cols = everything(),
+    names_to = "group",
+    values_to = "id"
+  )
+# combine the original data and randomly-allocated group
+object_Thailand_sample_group <- 
+  object_Thailand_sample%>% 
+  left_join(
+    cv, 
+    by = "id"
+  )
+# obtain provinces' name by point
+# 01
+object_Thailand_address_01 <- object_Thailand_sample_group %>%filter(group == "group01") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_01,"object_Thailand_address_hoge_01.rds")
+# 02
+object_Thailand_address_02 <- object_Thailand_sample_group %>%filter(group == "group02") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_02,"object_Thailand_address_hoge_02.rds")
+# 03
+object_Thailand_address_03 <- object_Thailand_sample_group %>%filter(group == "group03") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_03,"object_Thailand_address_hoge_03.rds")
+# 04
+object_Thailand_address_04 <- object_Thailand_sample_group %>%filter(group == "group04") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_04,"object_Thailand_address_hoge_04.rds")
+# 05
+object_Thailand_address_05 <- object_Thailand_sample_group %>%filter(group == "group05") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_05,"object_Thailand_address_hoge_05.rds")
+# 06
+object_Thailand_address_06 <- object_Thailand_sample_group %>%filter(group == "group06") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_06,"object_Thailand_address_hoge_06.rds")
+# 07
+object_Thailand_address_07 <- object_Thailand_sample_group %>%filter(group == "group07") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_07,"object_Thailand_address_hoge_07.rds")
+# 08
+object_Thailand_address_08 <- object_Thailand_sample_group %>%filter(group == "group08") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_08,"object_Thailand_address_hoge_08.rds")
+# 09
+object_Thailand_address_09 <- object_Thailand_sample_group %>%filter(group == "group09") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_09,"object_Thailand_address_hoge_09.rds")
+# 10
+object_Thailand_address_10 <- object_Thailand_sample_group %>%filter(group == "group10") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_10,"object_Thailand_address_hoge_10.rds")
+# 11
+object_Thailand_address_11 <- object_Thailand_sample_group %>%filter(group == "group11") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_11,"object_Thailand_address_hoge_11.rds")
+# 12
+object_Thailand_address_12 <- object_Thailand_sample_group %>%filter(group == "group12") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_12,"object_Thailand_address_hoge_12.rds")
+# 13
+object_Thailand_address_13 <- object_Thailand_sample_group %>%filter(group == "group13") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_13,"object_Thailand_address_hoge_13.rds")
+# 14
+object_Thailand_address_14 <- object_Thailand_sample_group %>%filter(group == "group14") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_14,"object_Thailand_address_hoge_14.rds")
+# 15
+object_Thailand_address_15 <- object_Thailand_sample_group %>%filter(group == "group15") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_15,"object_Thailand_address_hoge_15.rds")
+# 16
+object_Thailand_address_16 <- object_Thailand_sample_group %>%filter(group == "group16") %>% dplyr::mutate(area_info = furrr::future_map2(.x = lon,.y = lat, ~ find_city(sp_polygon = shp_Thailand, lon = .x, lat = .y))) %>%tibble()
+saveRDS(object_Thailand_address_16,"object_Thailand_address_hoge_16.rds")
+
+object_Thailand_address <-
+  # obtain path list of the separated address file
+  list.files(path = "./address", pattern = "*.rds") %>% 
+  # add strings to make complete paths
+  paste0("./address/",.) %>% 
+  # read the target files listed above
+  purrr::map_df(
+    ., 
+    readRDS
+    ) %>% 
+  # rows containing NA (lgl[1]) list
+  # if the variable named "area_info" contains NA, it will not be "tibble" but "lgl".
+  # Using the characteristics, we remove the list sorely with NA.
   dplyr::filter(
-    purrr::map_lgl(
+    map_lgl(
       area_info, 
       is_tibble
       )
     ) %>% 
-  # add necessary variables
-  dplyr::mutate(
-    code = dplyr::pull(
-      dplyr::bind_rows(
-        area_info
-        ), 
-      var = 1 # province code
-      ),
-    province = pull(
-      dplyr::bind_rows(
-        area_info
-        ), 
-      var = 2 # province name
-      )
-  ) %>% 
-  dplyr::select(-area_info, -lon, -lat)
-# 
-# competed!!
-# read the lat-lon data with geometry again
-# To save drive space, we removed it once before.
-object_Thailand_lat_lon <- 
-  readRDS("object_Thailand_lat_lon.rds") %>% 
-  # add id
-  dplyr::mutate(
-    id = c(1:nrow(.))) 
-# combine the lat-lon data and province
-object_Thailand <- 
-  object_Thailand_lat_lon %>%
-  # pick up target observations
-  # We need to remove some data data with disorder before analysis.
-  dplyr::filter(
-    id %in% object_Thailand_address_code_province$id
+  # bind the lists containing address
+  mutate(
+    areainfo = dplyr::bind_rows(.$area_info)
     ) %>% 
-  # join
-  dplyr::left_join(
-    object_Thailand_address_code_province, 
-    by = c("id")
+  # pick up necessary info
+  mutate(
+    province_code = areainfo$province_code,
+    province_name = areainfo$province_name
     ) %>% 
-  dplyr::tibble()
-# save the completed data
-saveRDS(object_Thailand, "object_Thailand.rds")
+  # select necessary variables
+  select(lon, lat, id, group, province_code, province_name)
+# save the results
+saveRDS(object_Thailand_address, "object_Thailand_address.rds")
+# save the results as a .csv file
+# NOTE
+# The csv file is huge. No apps can open that.
+readr::write_excel_csv(
+  object_Thailand_address, 
+  "object_Thailand_address.csv"
+  )
+
+# FIN
 
 #
 #
