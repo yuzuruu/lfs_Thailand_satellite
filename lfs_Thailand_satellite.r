@@ -16,6 +16,10 @@ library(tidyverse)
 library(sf)
 library(furrr)
 library(rsample)
+library(units)
+library(khroma)
+library(viridis)
+library(ggmap)
 # set concurrent computing plan
 # multisession: use CPUs as many as possible
 plan(multisession)
@@ -278,11 +282,139 @@ readr::write_excel_csv(
   "object_Thailand_address.csv"
   )
 
-# FIN
 
+# Final session
+# read the lat-lon data with geometry
+object_Thailand_lat_lon <- 
+  readRDS("object_Thailand_lat_lon.rds") %>% 
+  dplyr::mutate(
+    id = c(1:nrow(.))) %>%
+  dplyr::select(-true_false, -lat, -lon) 
+object_Thailand_address <- 
+  readRDS("object_Thailand_address.rds")
+# read the address data
+object_Thailand <- 
+  object_Thailand_lat_lon %>% 
+  inner_join(object_Thailand_address, by = "id")
+# save
+saveRDS(object_Thailand, "object_Thailand.rds")
+
+# 
+# FIN
 #
 #
 ##
 ### END ---
 ##
 #
+# 
+# ---- make.description ----
+# read the original file
+object_Thailand <- readRDS("object_Thailand.rds")
+# make a summary table
+object_Thailand_summary <- 
+  object_Thailand %>% 
+  as_tibble() %>% 
+  group_by(province_name) %>% 
+  nest() %>% 
+  mutate(
+    N = purrr::map_dbl(data, ~ length(.$area)),
+    Min. = purrr::map_dbl(data, ~ min(.$area)),
+    Mean = purrr::map_dbl(data, ~ mean(.$area)),
+    Median = purrr::map_dbl(data, ~ median(.$area)),
+    Max. = purrr::map_dbl(data, ~ max(.$area)),
+    SD = purrr::map_dbl(data, ~ sd(.$area)),
+  ) %>% 
+  ungroup() %>% 
+  select(-data)
+# write the summary table for inspection
+write_excel_csv(object_Thailand_summary, "object_Thailand_summary.csv")
+
+
+# check whether a building is a factory or not
+# Yes: 1
+# No: 0
+# 1. set API key for google
+# The google service requests us to obtain and input the key.
+# API key: For maps
+source("key.r")
+has_google_key()
+# 2. pick up 20 widest buildings by province
+object_Thailand_top20 <- 
+  object_Thailand %>% 
+  dplyr::group_by(province_name) %>% 
+  dplyr::slice_max(area, n = 20) %>% 
+  dplyr::ungroup()
+# 3. obtain satellite image from google
+object_Thailand_satellite_image <-
+  # th_sf_sample$sample_grid %>%
+  # # bind the grids' coordinates together
+  # base::do.call(dplyr::bind_rows,.) %>%
+  # obtain the satellite imagery
+  object_Thailand_top20 %>%
+  dplyr::mutate(
+    satellite = purrr::map2(
+      lon,
+      lat,
+      function(lon, lat)
+      {
+        ggmap::get_map(
+          location = c(
+            lon = lon,
+            lat = lat
+          ),
+          maptype = "satellite",
+          size = c(320, 320),
+          scale = 1,
+          format = "png",
+          zoom = 18 # <- BEWARE!!
+        )
+      }
+    )
+  ) 
+# 4. save the results
+# NOTE to save free API limit, we need to reuse the results.
+# For the reuse, we need to save the results as a .rds file.
+saveRDS(object_Thailand_satellite_image, "object_Thailand_satellite_image.rds")
+# 5. print the imagery for inspection
+pdf("object_Thailand_satellite_image_check.pdf")
+# purrr::pmap() function prefers list for input data
+  list(
+    object_Thailand_satellite_image$satellite,
+    object_Thailand_satellite_image$lon,
+    object_Thailand_satellite_image$lat,
+    object_Thailand_satellite_image$province_name,
+    object_Thailand_satellite_image$id
+    ) %>% 
+    purrr::pmap(
+      function(satellite, lon, lat, province_name, id){
+        # plot the image
+        ggmap::ggmap(ggmap = satellite) +
+        # add province's name
+        annotate(
+          "text", 
+          x = lon-0.001, 
+          y = lat-0.0015, 
+          size = 5, 
+          colour = "white", 
+          label = province_name
+        ) +
+          # add id
+        annotate(
+          "text", 
+          x = lon, 
+          y = lat-0.0015, 
+          size = 5, 
+          colour = "white", 
+          label = id
+        )
+      }
+    )
+dev.off()
+#
+#
+##
+### END ---
+##
+#
+
