@@ -349,7 +349,6 @@ plan(multisession)
 # 
 # make a summary table
 
-
 object_Thailand <- readRDS("object_Thailand.rds")
 
 object_Thailand_summary <- 
