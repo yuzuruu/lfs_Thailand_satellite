@@ -355,6 +355,7 @@ group_2027 <-
       object_Thailand_sample_group_google_100$group
     )
   )
+# end
 
 # obtain province name by building
 # NOTICE
