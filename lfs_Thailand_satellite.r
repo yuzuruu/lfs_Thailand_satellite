@@ -38,17 +38,17 @@ plan(multisession)
 # rm(object_Vietnam)
 # rm(object_Cambodia)
 # read shapefiles by country
-shp_Thailand <- 
-  sf::st_read(
-    "./shapefiles/THA_adm3.shp",
-    # "./shapefiles/THA_adm1.shp", 
-    options = "ENCODING=UTF-8", 
-    stringsAsFactors=FALSE
-  ) %>% 
-  dplyr::mutate_if(
-    is.character, 
-    enc2utf8
-  )
+# shp_Thailand <- 
+#   sf::st_read(
+#     "./shapefiles/THA_adm3.shp",
+#     # "./shapefiles/THA_adm1.shp", 
+#     options = "ENCODING=UTF-8", 
+#     stringsAsFactors=FALSE
+#   ) %>% 
+#   dplyr::mutate_if(
+#     is.character, 
+#     enc2utf8
+#   )
 # ---- read.function ----
 # a function find address from lat / lon
 # We thank following links.
@@ -181,13 +181,13 @@ shp_Thailand <-
 # gc()
 # gc()
 # read
-object_Thailand_sample <-
-  readRDS("object_Thailand_lat_lon.rds") %>%
-  dplyr::mutate(
-    id = c(1:nrow(.))) %>%
-  dplyr::select(-true_false, -area) %>%
-  sf::st_drop_geometry()
-
+# object_Thailand_sample <-
+#   readRDS("object_Thailand_lat_lon.rds") %>%
+#   dplyr::mutate(
+#     id = c(1:nrow(.))) %>%
+#   dplyr::select(-true_false, -area) %>%
+#   sf::st_drop_geometry()
+# 
 # object_Thailand_sample_google <-
 #   readRDS("object_Thailand_lat_lon_google.rds") %>%
 #   dplyr::mutate(
@@ -522,9 +522,15 @@ ggsave(
 
 
 
-# ---- hogehoge ----
-
-
+# ---- provide.address.all ----
+# read data
+object_Thailand_sample <-
+  readRDS("object_Thailand_lat_lon.rds") %>%
+  dplyr::mutate(
+    id = c(1:nrow(.))) %>%
+  dplyr::select(-true_false, -area) %>%
+  sf::st_drop_geometry()
+# read shapefiles
 shp_Thailand <- 
   sf::st_read(
     "./shapefiles/THA_adm3.shp",
@@ -536,7 +542,7 @@ shp_Thailand <-
     is.character, 
     enc2utf8
   )
-
+# a function to find province, district, and town
 find_city <- 
   function(sp_polygon = df, lon = lon, lat = lat){
     # find a polygon containing a certain pair of lon / lat
@@ -598,10 +604,8 @@ find_city <-
         tibble::data_frame(
           province_code = geos$ID_1,
           district_code = geos$ID_2,
-          town_code = geos$ID_3,
           province_name = geos$NAME_1,
           district_name = geos$NAME_2,
-          town_name = geos$NAME_3
         )
       # for inspecting function movement
       # print(res)
@@ -609,25 +613,33 @@ find_city <-
       return(res)
     }
   }
-
+# allocate group randomly
+# to ******, we set the random seed.
 sample(123)
 object_Thailand_sample_group <- 
   object_Thailand_sample %>% 
   dplyr::mutate(
-    group = rep(paste0("group",sample(c(1:100000), replace = FALSE)),each = 1000)[c(1:nrow(.))]
+    group = rep(
+      paste0(
+        "group",
+        sample(
+          c(1:125000),
+          replace = FALSE
+          )
+        ),
+      each = 800
+      )[c(1:nrow(.))]
   )
-
+# obtain the group level to use the following for loop
 group_level <-
   levels(
     factor(
       object_Thailand_sample_group$group
     )
   )
-
 # obtain address by group and object individually
 object_Thailand_sample_group_address <-
-  # for(i in 1:length(group_level)){
-  for(i in 1:5){
+  for(i in 1:length(group_level)){
       target <- filter(
       object_Thailand_sample_group,
       group == group_level[i]
@@ -656,9 +668,7 @@ object_Thailand_sample_group_address <-
         province_code = target_address$area_info$province_code,
         province_name = target_address$area_info$province_name,
         district_code = target_address$area_info$district_code,
-        district_name = target_address$area_info$district_name,
-        town_code = target_address$area_info$town_code,
-        town_name = target_address$area_info$town_name
+        district_name = target_address$area_info$district_name
       ) %>%
         # remove rows containing NA
         na.omit(),
@@ -668,42 +678,39 @@ object_Thailand_sample_group_address <-
     # gc()
     # gc()
   }
-
-    
-    
-    
-    # make a list of generated csv files
-    target_file_list <-
-      dir(
-        path = "target_address_mekong",
-        pattern = "*.csv"
+# make a list of generated csv files
+# Reference:
+# https://qiita.com/Ringa_hyj/items/434e3a6794bb7ed8ee14
+target_file_list <-
+  dir(
+    path = "target_address_mekong",
+    pattern = "*.csv"
+    )
+# save the generated csv files
+# NOTE
+# There exist huge number of csv files.
+# vroom::vroom() might not be able to use.
+# Then, use furrr::future_map_dfr() and data.table::fread() instead.
+# vroom::vroom()
+target_address_mekong_combined <-
+  vroom::vroom(
+    paste0(
+      "target_address_mekong/",
+      target_file_list,
+      sep = ""
       )
-    # Reference:
-    # https://qiita.com/Ringa_hyj/items/434e3a6794bb7ed8ee14
-    target_address_mekong_combined <-
-      vroom::vroom(
-        paste0(
-          "target_address_mekong/",
-          target_file_list[c(1:4000)],
-          sep = ""
-        )
-      ) 
-    
-    
-    # target_address_mekong_combined <- 
-    #   furrr::future_map_dfr(
-    #     paste0(
-    #       "target_address_mekong/",
-    #       target_file_list,
-    #       sep = ""
-    #     ),
-    #     data.table::fread
-    #   )
-    readr::write_rds(target_address_mekong_combined, "target_address_mekong_combined.rds")
-    
-    hoge <- readr::read_rds("target_address_mekong_combined.rds")
-    
-    
-    
-    
-    
+    ) 
+# furrr::future_map_dfr() and data.table::fread()
+target_address_mekong_combined <-
+  furrr::future_map_dfr(
+    paste0(
+      "target_address_mekong/",
+      target_file_list,
+      sep = ""
+    ),
+    data.table::fread
+  )
+readr::write_rds(
+  target_address_mekong_combined, "target_address_mekong_combined.rds")
+
+# END
