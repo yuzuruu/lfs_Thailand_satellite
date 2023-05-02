@@ -402,146 +402,134 @@ group_2027 <-
 # # 
 # ---- top100 ----
 # read the data
-object_Thailand <- 
-  readRDS("object_Thailand.rds")
-# sample the largest 100 objects by province
-object_Thailand_top100 <- 
-  object_Thailand %>% 
-  st_drop_geometry() %>% 
-  group_by(province_name) %>% 
-  dplyr::arrange(desc(area)) %>% 
-  dplyr::slice(1:100)
-write_excel_csv(
-  object_Thailand_top100,
-  "object_Thailand_top100.csv"
-  )
-# summary statistics
-object_Thailand_summary <- 
-  object_Thailand %>%
-  dplyr::mutate(
-    area = as.numeric(area)
-  ) %>%
-  sf::st_drop_geometry() %>% 
-  dplyr::select(area, id, province_name) %>% 
-  dplyr::group_by(province_name) %>% 
-  dplyr::summarise(
-    N = n(),
-    Min. = min(area),
-    Mean = mean(area),
-    Median = median(area),
-    Max. = max(area),
-    SD = sd(area),
-    SE = sd(area)/sqrt(n()),
-    area_sum = sum(area)
-  )
-readr::write_excel_csv(
-  object_Thailand_summary,
-  "object_Thailand_entire_summary.csv"
-)
+# object_Thailand <- 
+#   readRDS("object_Thailand.rds")
+# # sample the largest 100 objects by province
+# object_Thailand_top100 <- 
+#   object_Thailand %>% 
+#   st_drop_geometry() %>% 
+#   group_by(province_name) %>% 
+#   dplyr::arrange(desc(area)) %>% 
+#   dplyr::slice(1:100)
+# write_excel_csv(
+#   object_Thailand_top100,
+#   "object_Thailand_top100.csv"
+#   )
+# # summary statistics
+# object_Thailand_summary <- 
+#   object_Thailand %>%
+#   dplyr::mutate(
+#     area = as.numeric(area)
+#   ) %>%
+#   sf::st_drop_geometry() %>% 
+#   dplyr::select(area, id, province_name) %>% 
+#   dplyr::group_by(province_name) %>% 
+#   dplyr::summarise(
+#     N = n(),
+#     Min. = min(area),
+#     Mean = mean(area),
+#     Median = median(area),
+#     Max. = max(area),
+#     SD = sd(area),
+#     SE = sd(area)/sqrt(n()),
+#     area_sum = sum(area)
+#   )
+# readr::write_excel_csv(
+#   object_Thailand_summary,
+#   "object_Thailand_entire_summary.csv"
+# )
 # ---- read.lfs.data ----
 # read the N. of current labor force
 # variable entitled "year" should be adjusted
-lfs_province <- 
-  readr::read_csv("../lfs_Thailand_province/fit_clf_01_summary_x_yhat_pd.csv") %>% 
-  dplyr::mutate(
-    # replace all the underscore ("_") into brank (" ").
-    province = stringr::str_replace_all(
-      province,
-      "_", # 空白を
-      " "  # アンダースコアにすべて置き換える
-    )
-  ) %>% 
-  # choose requisite data
-  dplyr::filter(
-    parameter == "yhat" & year_month == "2017-10-01"
-  )
-# join the area data and LFS data
-lfs_area_province <- 
-  lfs_province %>% 
-  dplyr::left_join(
-    object_Thailand_summary,
-    # largest_buildings_province_wide, 
-    by = c("province" = "province_name"),
-    multiple = "all"
-  )
+# lfs_province <- 
+#   readr::read_csv("../lfs_Thailand_province/fit_clf_01_summary_x_yhat_pd.csv") %>% 
+#   dplyr::mutate(
+#     # replace all the underscore ("_") into brank (" ").
+#     province = stringr::str_replace_all(
+#       province,
+#       "_", # 空白を
+#       " "  # アンダースコアにすべて置き換える
+#     )
+#   ) %>% 
+#   # choose requisite data
+#   dplyr::filter(
+#     parameter == "yhat" & year_month == "2017-10-01"
+#   )
+# # join the area data and LFS data
+# lfs_area_province <- 
+#   lfs_province %>% 
+#   dplyr::left_join(
+#     object_Thailand_summary,
+#     # largest_buildings_province_wide, 
+#     by = c("province" = "province_name"),
+#     multiple = "all"
+#   )
 # 
 # ---- analysis.allometry ----
 # logarithmic transformation
-lfs_area_province_log <- 
-  lfs_area_province %>% 
-  dplyr::select(province, mean, area_sum) %>% 
-  # dplyr::select(mean, business, culture, industry)
-  dplyr::mutate(
-    LF = log(mean),
-    Area = log(area_sum)
-  ) 
-# analysis
-# linear regression
-summary(lm(LF ~ Area, data = lfs_area_province_log))
-# plot 
-# Bayesian regression
-allometry_bayes <- 
-  brms::brm(formula = LF ~ Area,
-            family = student(link = "identity"),
-            cores = 4,
-            backend = "cmdstanr",
-            data = lfs_area_province_log
-  )
-plot(allometry_bayes)
-WAIC(allometry_bayes)
-
-
-
-plot(
-  conditional_effects(allometry_bayes), 
-  points =TRUE, 
-  ask = FALSE,
-  theme = theme_classic()
-  )
-ggsave(
-  "allometry_all.pdf",
-  width = 150, 
-  height = 150,
-  units = "mm"
-  )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# lfs_area_province_log <- 
+#   lfs_area_province %>% 
+#   dplyr::select(province, mean, area_sum) %>% 
+#   # dplyr::select(mean, business, culture, industry)
+#   dplyr::mutate(
+#     LF = log(mean),
+#     Area = log(area_sum)
+#   ) 
+# # analysis
+# # linear regression
+# summary(lm(LF ~ Area, data = lfs_area_province_log))
+# # plot 
+# # Bayesian regression
+# allometry_bayes <- 
+#   brms::brm(formula = LF ~ Area,
+#             family = student(link = "identity"),
+#             cores = 4,
+#             backend = "cmdstanr",
+#             data = lfs_area_province_log
+#   )
+# plot(allometry_bayes)
+# WAIC(allometry_bayes)
+# 
+# plot(
+#   conditional_effects(allometry_bayes), 
+#   points =TRUE, 
+#   ask = FALSE,
+#   theme = theme_classic()
+#   )
+# ggsave(
+#   "allometry_all.pdf",
+#   width = 150, 
+#   height = 150,
+#   units = "mm"
+#   )
+# 
 # ---- provide.address.all ----
+# This section provides all the adresses of the footprints.
+# (N = Approx. 24,000,000)
+# This needs long computation period (Approx 300 days). 
+# We need collect results every 1 month and restart.
+# 
 # read data
 object_Thailand_sample <-
   readRDS("object_Thailand_lat_lon.rds") %>%
   dplyr::mutate(
-    id = c(1:nrow(.))) %>%
+    id = c(1:nrow(.))
+    ) %>%
   dplyr::select(-true_false, -area) %>%
   sf::st_drop_geometry()
 # read shapefiles
 shp_Thailand <- 
   sf::st_read(
-    "./shapefiles/THA_adm3.shp",
-    # "./shapefiles/THA_adm1.shp", 
+    "./shapefiles/THA_adm2.shp",
     options = "ENCODING=UTF-8", 
     stringsAsFactors=FALSE
   ) %>% 
+  # transform all the character into utf-8
   dplyr::mutate_if(
     is.character, 
     enc2utf8
   )
+# read a function
 # a function to find province, district, and town
 find_city <- 
   function(sp_polygon = df, lon = lon, lat = lat){
@@ -558,20 +546,15 @@ find_city <-
         sparse = FALSE
       ) %>%  
       grep(TRUE, .)
-    # If not, leave a warning message
-    # -> deliver values ("hoge") to avoid malfunction.
+    # If not, deliver values ("hoge") to avoid malfunction.
     # We will remove NA by the values later. 
     if (identical(which.row, integer(0)) == TRUE) {
-      # Original code provides the following message.
-      # message("指定した座標がポリゴンに含まれません")
       geos <- 
         data.frame(
           ID_1 = "hoge", 
           NAME_1 = "hoge",
           ID_2 = "hoge", 
-          NAME_2 = "hoge",
-          ID_3 = "hoge",
-          NAME_3 = "hoge"
+          NAME_2 = "hoge"
         )
     }
     # If exist, obtain information of coordinates
@@ -613,8 +596,10 @@ find_city <-
       return(res)
     }
   }
-# allocate group randomly
-# to ******, we set the random seed.
+# allocate group randomly to separate the footprint data 
+# to stabilise the results, we set the random seed.
+# By sampling randomly, we can use the results partly even though
+# the computation might not be finished all.
 sample(123)
 object_Thailand_sample_group <- 
   object_Thailand_sample %>% 
@@ -622,15 +607,17 @@ object_Thailand_sample_group <-
     group = rep(
       paste0(
         "group",
+        # adjust the number accordingly.
         sample(
-          c(1:125000),
+          c(1:500000),
           replace = FALSE
           )
         ),
-      each = 800
+      each = 200
       )[c(1:nrow(.))]
   )
 # obtain the group level to use the following for loop
+# N. of group level:122,381
 group_level <-
   levels(
     factor(
