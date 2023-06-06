@@ -39,90 +39,90 @@ plan(multisession)
 # rm(object_Vietnam)
 # rm(object_Cambodia)
 # read shapefiles by country
-shp_Thailand <- 
-  sf::st_read(
-    # "./shapefiles/THA_adm3.shp", 
-    "./shapefiles/THA_adm1.shp", 
-    options = "ENCODING=UTF-8", 
-    stringsAsFactors=FALSE
-  ) %>% 
-  dplyr::mutate_if(
-    is.character, 
-    enc2utf8
-  )
+# shp_Thailand <- 
+#   sf::st_read(
+#     "./shapefiles/THA_adm3.shp",
+#     # "./shapefiles/THA_adm1.shp", 
+#     options = "ENCODING=UTF-8", 
+#     stringsAsFactors=FALSE
+#   ) %>% 
+#   dplyr::mutate_if(
+#     is.character, 
+#     enc2utf8
+#   )
 # ---- read.function ----
 # a function find address from lat / lon
 # We thank following links.
 # https://qiita.com/nozma/items/808bce2f496eabd50ff1
 # https://qiita.com/uri/items/69b2c05f7b3a21d3aad3
-find_city <- 
-  function(sp_polygon = df, lon = lon, lat = lat){
-    # find a polygon containing a certain pair of lon / lat
-    which.row <- 
-      sf::st_contains(
-        sp_polygon, 
-        sf::st_point(
-          c(
-            lon, 
-            lat
-          )
-        ), 
-        sparse = FALSE
-      ) %>%  
-      grep(TRUE, .)
-    # If not, leave a warning message
-    # -> deliver values ("hoge") to avoid malfunction.
-    # We will remove NA by the values later. 
-    if (identical(which.row, integer(0)) == TRUE) {
-      # Original code provides the following message.
-      # message("指定した座標がポリゴンに含まれません")
-      geos <- 
-        data.frame(
-          ID_1 = "hoge", 
-          NAME_1 = "hoge"
-        )
-    }
-    # If exist, obtain information of coordinates
-    else {
-      geos <- 
-        sp_polygon[which.row, ] %>%
-        # transform from factor to character
-        dplyr::mutate_if(
-          is.factor, 
-          as.character
-        ) %>% 
-        # obtain necessary part of the shapefile
-        dplyr::mutate_at(
-          # dplyr::vars(NAME_1, NAME_2, NAME_3), 
-          dplyr::vars(NAME_1), 
-          dplyr::funs(
-            dplyr::if_else(
-              # Is it NA?
-              condition = is.na(.),
-              # if NA, return blank
-              true = "", 
-              # if not, use it
-              false = .
-            )
-          )
-        )
-      # make a dataset of administrative boundaries
-      # Names and IDs are obtained from shapefiles
-      res <- 
-        tibble::data_frame(
-          province_code = geos$ID_1,
-          # district_code = geos$ID_2,
-          # town_code = geos$ID_3,
-          province_name = geos$NAME_1,
-          # district_name = geos$NAME_2,
-          # town_name = geos$NAME_3
-        )
-      # for inspecting function movement
-      print(res)
-      # return results
-      return(res)
-    }
-  }
+# find_city <- 
+#   function(sp_polygon = df, lon = lon, lat = lat){
+#     # find a polygon containing a certain pair of lon / lat
+#     which.row <- 
+#       sf::st_contains(
+#         sp_polygon, 
+#         sf::st_point(
+#           c(
+#             lon, 
+#             lat
+#           )
+#         ), 
+#         sparse = FALSE
+#       ) %>%  
+#       grep(TRUE, .)
+#     # If not, leave a warning message
+#     # -> deliver values ("hoge") to avoid malfunction.
+#     # We will remove NA by the values later. 
+#     if (identical(which.row, integer(0)) == TRUE) {
+#       # Original code provides the following message.
+#       # message("指定した座標がポリゴンに含まれません")
+#       geos <- 
+#         data.frame(
+#           ID_1 = "hoge", 
+#           NAME_1 = "hoge"
+#         )
+#     }
+#     # If exist, obtain information of coordinates
+#     else {
+#       geos <- 
+#         sp_polygon[which.row, ] %>%
+#         # transform from factor to character
+#         dplyr::mutate_if(
+#           is.factor, 
+#           as.character
+#         ) %>% 
+#         # obtain necessary part of the shapefile
+#         dplyr::mutate_at(
+#           # dplyr::vars(NAME_1, NAME_2, NAME_3), 
+#           dplyr::vars(NAME_1), 
+#           dplyr::funs(
+#             dplyr::if_else(
+#               # Is it NA?
+#               condition = is.na(.),
+#               # if NA, return blank
+#               true = "", 
+#               # if not, use it
+#               false = .
+#             )
+#           )
+#         )
+#       # make a dataset of administrative boundaries
+#       # Names and IDs are obtained from shapefiles
+#       res <- 
+#         tibble::data_frame(
+#           province_code = geos$ID_1,
+#           # district_code = geos$ID_2,
+#           # town_code = geos$ID_3,
+#           province_name = geos$NAME_1,
+#           # district_name = geos$NAME_2,
+#           # town_name = geos$NAME_3
+#         )
+#       # for inspecting function movement
+#       print(res)
+#       # return results
+#       return(res)
+#     }
+#   }
 #
 #
 ##
@@ -182,13 +182,13 @@ find_city <-
 # gc()
 # gc()
 # read
-# object_Thailand_sample <- 
-#   readRDS("object_Thailand_lat_lon.rds") %>% 
+# object_Thailand_sample <-
+#   readRDS("object_Thailand_lat_lon.rds") %>%
 #   dplyr::mutate(
 #     id = c(1:nrow(.))) %>%
-#   dplyr::select(-true_false, -area) %>% 
-#   sf::st_drop_geometry() 
-
+#   dplyr::select(-true_false, -area) %>%
+#   sf::st_drop_geometry()
+# 
 # object_Thailand_sample_google <-
 #   readRDS("object_Thailand_lat_lon_google.rds") %>%
 #   dplyr::mutate(
@@ -362,96 +362,343 @@ group_2027 <-
 # NOTICE
 # This process consumes Approx. 1 Min./ sheet (106 observations),
 # equivalent to 45 hours in total.
-object_Thailand_sample_group_google_100_address <-
-  for(i in 1:length(group_2027)){
-    target <- filter(
-      object_Thailand_sample_group_google_100, 
-      group == group_2027[i]
+# object_Thailand_sample_group_google_100_address <-
+#   for(i in 1:length(group_2027)){
+#     target <- filter(
+#       object_Thailand_sample_group_google_100, 
+#       group == group_2027[i]
+#     )
+#     target_address <-
+#       target %>%
+#       dplyr::mutate(
+#         area_info = furrr::future_map2_dfr(
+#           .x = lon, 
+#           .y = lat, 
+#           ~ try(
+#             find_city(
+#               sp_polygon = shp_Thailand, 
+#               lon = .x, 
+#               lat = .y
+#             )
+#           )
+#         )
+#       ) %>%
+#       tibble() 
+#     # save the computation results
+#     write_excel_csv(
+#       # fix target column
+#       bind_cols(
+#         id = target_address$id, 
+#         province_code = target_address$area_info$province_code,
+#         province_name = target_address$area_info$province_name
+#       ) %>% 
+#         # remove rows containing NA
+#         na.omit(), 
+#       file = paste0("target_address/",target_address$group[1], ".csv")
+#     )
+#     # for larger data, enable the gc() function
+#     gc()
+#     gc()
+#   }
+# # 
+# ---- top100 ----
+# read the data
+# object_Thailand <- 
+#   readRDS("object_Thailand.rds")
+# # sample the largest 100 objects by province
+# object_Thailand_top100 <- 
+#   object_Thailand %>% 
+#   st_drop_geometry() %>% 
+#   group_by(province_name) %>% 
+#   dplyr::arrange(desc(area)) %>% 
+#   dplyr::slice(1:100)
+# write_excel_csv(
+#   object_Thailand_top100,
+#   "object_Thailand_top100.csv"
+#   )
+# # summary statistics
+# object_Thailand_summary <- 
+#   object_Thailand %>%
+#   dplyr::mutate(
+#     area = as.numeric(area)
+#   ) %>%
+#   sf::st_drop_geometry() %>% 
+#   dplyr::select(area, id, province_name) %>% 
+#   dplyr::group_by(province_name) %>% 
+#   dplyr::summarise(
+#     N = n(),
+#     Min. = min(area),
+#     Mean = mean(area),
+#     Median = median(area),
+#     Max. = max(area),
+#     SD = sd(area),
+#     SE = sd(area)/sqrt(n()),
+#     area_sum = sum(area)
+#   )
+# readr::write_excel_csv(
+#   object_Thailand_summary,
+#   "object_Thailand_entire_summary.csv"
+# )
+# ---- read.lfs.data ----
+# read the N. of current labor force
+# variable entitled "year" should be adjusted
+# lfs_province <- 
+#   readr::read_csv("../lfs_Thailand_province/fit_clf_01_summary_x_yhat_pd.csv") %>% 
+#   dplyr::mutate(
+#     # replace all the underscore ("_") into brank (" ").
+#     province = stringr::str_replace_all(
+#       province,
+#       "_", # 空白を
+#       " "  # アンダースコアにすべて置き換える
+#     )
+#   ) %>% 
+#   # choose requisite data
+#   dplyr::filter(
+#     parameter == "yhat" & year_month == "2017-10-01"
+#   )
+# # join the area data and LFS data
+# lfs_area_province <- 
+#   lfs_province %>% 
+#   dplyr::left_join(
+#     object_Thailand_summary,
+#     # largest_buildings_province_wide, 
+#     by = c("province" = "province_name"),
+#     multiple = "all"
+#   )
+# 
+# ---- analysis.allometry ----
+# logarithmic transformation
+# lfs_area_province_log <- 
+#   lfs_area_province %>% 
+#   dplyr::select(province, mean, area_sum) %>% 
+#   # dplyr::select(mean, business, culture, industry)
+#   dplyr::mutate(
+#     LF = log(mean),
+#     Area = log(area_sum)
+#   ) 
+# # analysis
+# # linear regression
+# summary(lm(LF ~ Area, data = lfs_area_province_log))
+# # plot 
+# # Bayesian regression
+# allometry_bayes <- 
+#   brms::brm(formula = LF ~ Area,
+#             family = student(link = "identity"),
+#             cores = 4,
+#             backend = "cmdstanr",
+#             data = lfs_area_province_log
+#   )
+# plot(allometry_bayes)
+# WAIC(allometry_bayes)
+# 
+# plot(
+#   conditional_effects(allometry_bayes), 
+#   points =TRUE, 
+#   ask = FALSE,
+#   theme = theme_classic()
+#   )
+# ggsave(
+#   "allometry_all.pdf",
+#   width = 150, 
+#   height = 150,
+#   units = "mm"
+#   )
+# 
+# ---- provide.address.all ----
+# This section provides all the adresses of the footprints.
+# (N = Approx. 24,000,000)
+# This needs long computation period (Approx 300 days). 
+# We need collect results every 1 month and restart.
+# 
+# read data
+object_Thailand_sample <-
+  readRDS("object_Thailand_lat_lon.rds") %>%
+  dplyr::mutate(
+    id = c(1:nrow(.))
+    ) %>%
+  dplyr::select(-true_false, -area) %>%
+  sf::st_drop_geometry()
+# read shapefiles
+shp_Thailand <- 
+  sf::st_read(
+    "./shapefiles/THA_adm2.shp",
+    options = "ENCODING=UTF-8", 
+    stringsAsFactors=FALSE
+  ) %>% 
+  # transform all the character into utf-8
+  dplyr::mutate_if(
+    is.character, 
+    enc2utf8
+  )
+# read a function
+# a function to find province, district, and town
+find_city <- 
+  function(sp_polygon = df, lon = lon, lat = lat){
+    # find a polygon containing a certain pair of lon / lat
+    which.row <- 
+      sf::st_contains(
+        sp_polygon, 
+        sf::st_point(
+          c(
+            lon, 
+            lat
+          )
+        ), 
+        sparse = FALSE
+      ) %>%  
+      grep(TRUE, .)
+    # If not, deliver values ("hoge") to avoid malfunction.
+    # We will remove NA by the values later. 
+    if (identical(which.row, integer(0)) == TRUE) {
+      geos <- 
+        data.frame(
+          ID_1 = "hoge", 
+          NAME_1 = "hoge",
+          ID_2 = "hoge", 
+          NAME_2 = "hoge"
+        )
+    }
+    # If exist, obtain information of coordinates
+    else {
+      geos <- 
+        sp_polygon[which.row, ] %>%
+        # transform from factor to character
+        dplyr::mutate_if(
+          is.factor, 
+          as.character
+        ) %>% 
+        # obtain necessary part of the shapefile
+        dplyr::mutate_at(
+          # dplyr::vars(NAME_1, NAME_2, NAME_3), 
+          dplyr::vars(NAME_1), 
+          dplyr::funs(
+            dplyr::if_else(
+              # Is it NA?
+              condition = is.na(.),
+              # if NA, return blank
+              true = "", 
+              # if not, use it
+              false = .
+            )
+          )
+        )
+      # make a dataset of administrative boundaries
+      # Names and IDs are obtained from shapefiles
+      res <- 
+        tibble::data_frame(
+          province_code = geos$ID_1,
+          district_code = geos$ID_2,
+          province_name = geos$NAME_1,
+          district_name = geos$NAME_2,
+        )
+      # for inspecting function movement
+      # print(res)
+      # return results
+      return(res)
+    }
+  }
+# allocate group randomly to separate the footprint data 
+# to stabilise the results, we set the random seed.
+# By sampling randomly, we can use the results partly even though
+# the computation might not be finished all.
+sample(123)
+object_Thailand_sample_group <- 
+  object_Thailand_sample %>% 
+  dplyr::mutate(
+    group = rep(
+      paste0(
+        "group",
+        # adjust the number accordingly.
+        sample(
+          c(1:500000),
+          replace = FALSE
+          )
+        ),
+      each = 200
+      )[c(1:nrow(.))]
+  )
+# obtain the group level to use the following for loop
+# N. of group level:122,381
+group_level <-
+  levels(
+    factor(
+      object_Thailand_sample_group$group
+    )
+  )
+# obtain address by group and object individually
+object_Thailand_sample_group_address <-
+  for(i in 1:length(group_level)){
+      target <- filter(
+      object_Thailand_sample_group,
+      group == group_level[i]
     )
     target_address <-
       target %>%
       dplyr::mutate(
         area_info = furrr::future_map2_dfr(
-          .x = lon, 
-          .y = lat, 
+          .x = lon,
+          .y = lat,
           ~ try(
             find_city(
-              sp_polygon = shp_Thailand, 
-              lon = .x, 
+              sp_polygon = shp_Thailand,
+              lon = .x,
               lat = .y
             )
           )
         )
       ) %>%
-      tibble() 
+      tibble()
     # save the computation results
     write_excel_csv(
       # fix target column
       bind_cols(
-        id = target_address$id, 
+        id = target_address$id,
         province_code = target_address$area_info$province_code,
-        province_name = target_address$area_info$province_name
-      ) %>% 
+        province_name = target_address$area_info$province_name,
+        district_code = target_address$area_info$district_code,
+        district_name = target_address$area_info$district_name
+      ) %>%
         # remove rows containing NA
-        na.omit(), 
-      file = paste0("target_address/",target_address$group[1], ".csv")
+        na.omit(),
+      file = paste0("target_address_Thailand/",target_address$group[1], ".csv")
     )
     # for larger data, enable the gc() function
-    gc()
-    gc()
+    # gc()
+    # gc()
   }
-# 
-# ---- experiment ----
-# EXPERIMENTAL
-# NO USE
-# This procedure needs a lot of memory. Sometimes it does not finish correctly.
-# # set concurrent computing plan
-# # multisession: use CPUs as many as possible
-# plan(multisession)
-# # obtain address from shapefiles
-# object_Thailand_address <-
-#   object_Thailand_sample %>%
-#   # obtain area information from the shapefile
-#   dplyr::mutate(
-#     # using furrr() package enables us to concurrent computing!!
-#     # It raises up computation period dramatically!!
-#     # In detail, refer to the following page.
-#     # https://blog.atusy.net/2018/12/06/furrr/
-#     # Previously, we used to use the following code with purrr::map2_dfr()
-#     # area_info = purrr::map2_dfr(
-#     area_info = furrr::future_map2(
-#       .x = lon,
-#       .y = lat,
-#       ~
-#         find_city(
-#           sp_polygon = shp_Thailand,
-#           lon = .x,
-#           lat = .y
-#           )
-#       )
-#     ) %>%
-#   tibble()
-# object_Thailand_address
-# object_Thailand_address$area_info
-# 
-# 
-# saveRDS(object_Thailand_address, "object_Thailand_address.rds")
-# # rm(object_Thailand_address)
-# gc()
-# gc()
-# 
-# object_Thailand_address <- readRDS("object_Thailand_address.rds")
-# 
-# 
-# 
-# # competed!!
-# object_Thailand <- 
-#   bind_cols(
-#     object_Thailand_address$area_info, 
-#     object_Thailand_data
-#     ) %>% 
-#   select(-area_info, -true_false)
-# # save the completed data
-# saveRDS(object_Thailand, "object_Thailand.rds")
+# make a list of generated csv files
+# Reference:
+# https://qiita.com/Ringa_hyj/items/434e3a6794bb7ed8ee14
+target_file_list <-
+  dir(
+    path = "target_address_mekong",
+    pattern = "*.csv"
+    )
+# save the generated csv files
+# NOTE
+# There exist huge number of csv files.
+# vroom::vroom() might not be able to use.
+# Then, use furrr::future_map_dfr() and data.table::fread() instead.
+# vroom::vroom()
+target_address_mekong_combined <-
+  vroom::vroom(
+    paste0(
+      "target_address_mekong/",
+      target_file_list,
+      sep = ""
+      )
+    ) 
+# furrr::future_map_dfr() and data.table::fread()
+target_address_mekong_combined <-
+  furrr::future_map_dfr(
+    paste0(
+      "target_address_mekong/",
+      target_file_list,
+      sep = ""
+    ),
+    data.table::fread
+  )
+readr::write_rds(
+  target_address_mekong_combined, "target_address_mekong_combined.rds")
 
-
+# END
