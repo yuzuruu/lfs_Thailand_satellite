@@ -13,6 +13,9 @@ library(tidyverse)
 library(sf)
 library(furrr)
 library(rsample)
+library(sjPlot)
+library(ggrepel)
+library(qqplotr)
 # set concurrent computing plan
 # multisession: use CPUs as many as possible
 plan(multisession)
@@ -333,28 +336,28 @@ set.seed(123)
 # set a random seed to prove repricability
 set.seed(123)
 # read the data including target objects
-object_Thailand_sample_group_google_100 <- 
-  readRDS(
-    "object_Thailand_sample_group_google.rds"
-  ) %>% 
-  # separate by the designated group
-  dplyr::group_by(
-    group
-  ) %>% 
-  # sample by group
-  # We sampled 106 samples per group.
-  dplyr::sample_frac(
-    size = 0.01
-  ) %>% 
-  # relase the group
-  dplyr::ungroup() 
-# provide the N. of group (2027)
-group_2027 <- 
-  levels(
-    factor(
-      object_Thailand_sample_group_google_100$group
-    )
-  )
+# object_Thailand_sample_group_google_100 <- 
+#   readRDS(
+#     "object_Thailand_sample_group_google.rds"
+#   ) %>% 
+#   # separate by the designated group
+#   dplyr::group_by(
+#     group
+#   ) %>% 
+#   # sample by group
+#   # We sampled 106 samples per group.
+#   dplyr::sample_frac(
+#     size = 0.01
+#   ) %>% 
+#   # relase the group
+#   dplyr::ungroup() 
+# # provide the N. of group (2027)
+# group_2027 <- 
+#   levels(
+#     factor(
+#       object_Thailand_sample_group_google_100$group
+#     )
+#   )
 # end
 
 # obtain province name by building
@@ -402,302 +405,137 @@ group_2027 <-
 # # 
 # ---- top100 ----
 # read the data
-# object_Thailand <- 
-#   readRDS("object_Thailand.rds")
-# # sample the largest 100 objects by province
-# object_Thailand_top100 <- 
-#   object_Thailand %>% 
-#   st_drop_geometry() %>% 
-#   group_by(province_name) %>% 
-#   dplyr::arrange(desc(area)) %>% 
-#   dplyr::slice(1:100)
-# write_excel_csv(
-#   object_Thailand_top100,
-#   "object_Thailand_top100.csv"
-#   )
-# # summary statistics
-# object_Thailand_summary <- 
-#   object_Thailand %>%
-#   dplyr::mutate(
-#     area = as.numeric(area)
-#   ) %>%
-#   sf::st_drop_geometry() %>% 
-#   dplyr::select(area, id, province_name) %>% 
-#   dplyr::group_by(province_name) %>% 
-#   dplyr::summarise(
-#     N = n(),
-#     Min. = min(area),
-#     Mean = mean(area),
-#     Median = median(area),
-#     Max. = max(area),
-#     SD = sd(area),
-#     SE = sd(area)/sqrt(n()),
-#     area_sum = sum(area)
-#   )
-# readr::write_excel_csv(
-#   object_Thailand_summary,
-#   "object_Thailand_entire_summary.csv"
-# )
+object_Thailand <-
+  readRDS("object_Thailand.rds")
+# sample the largest 100 objects by province
+object_Thailand_top100 <-
+  object_Thailand %>%
+  st_drop_geometry() %>%
+  group_by(province_name) %>%
+  dplyr::arrange(desc(area)) %>%
+  dplyr::slice(1:100)
+write_excel_csv(
+  object_Thailand_top100,
+  "object_Thailand_top100.csv"
+  )
+# summary statistics
+object_Thailand_summary <-
+  object_Thailand %>%
+  dplyr::mutate(
+    area = as.numeric(area)
+  ) %>%
+  sf::st_drop_geometry() %>%
+  dplyr::select(area, id, province_name) %>%
+  dplyr::group_by(province_name) %>%
+  dplyr::summarise(
+    N = n(),
+    Min. = min(area),
+    Mean = mean(area),
+    Median = median(area),
+    Max. = max(area),
+    SD = sd(area),
+    SE = sd(area)/sqrt(n()),
+    area_sum = sum(area)
+  )
+readr::write_excel_csv(
+  object_Thailand_summary,
+  "object_Thailand_entire_summary.csv"
+)
 # ---- read.lfs.data ----
 # read the N. of current labor force
 # variable entitled "year" should be adjusted
-# lfs_province <- 
-#   readr::read_csv("../lfs_Thailand_province/fit_clf_01_summary_x_yhat_pd.csv") %>% 
-#   dplyr::mutate(
-#     # replace all the underscore ("_") into brank (" ").
-#     province = stringr::str_replace_all(
-#       province,
-#       "_", # 空白を
-#       " "  # アンダースコアにすべて置き換える
-#     )
-#   ) %>% 
-#   # choose requisite data
-#   dplyr::filter(
-#     parameter == "yhat" & year_month == "2017-10-01"
-#   )
+lfs_province <-
+  readr::read_csv("../lfs_Thailand_province/fit_clf_01_summary_x_yhat_pd.csv") %>%
+  dplyr::mutate(
+    # replace all the underscore ("_") into brank (" ").
+    province = stringr::str_replace_all(
+      province,
+      "_", # 空白を
+      " "  # アンダースコアにすべて置き換える
+    )
+  ) %>%
+  # choose requisite data
+  dplyr::filter(
+    parameter == "yhat" & year_month == "2017-10-01"
+  )
 # # join the area data and LFS data
-# lfs_area_province <- 
-#   lfs_province %>% 
-#   dplyr::left_join(
-#     object_Thailand_summary,
-#     # largest_buildings_province_wide, 
-#     by = c("province" = "province_name"),
-#     multiple = "all"
-#   )
+lfs_area_province <-
+  lfs_province %>%
+  dplyr::left_join(
+    object_Thailand_summary,
+    # largest_buildings_province_wide,
+    by = c("province" = "province_name"),
+    multiple = "all"
+  )
+# for smooth computation, remove the temporary data
+rm(object_Thailand)
 # 
 # ---- analysis.allometry ----
 # logarithmic transformation
-# lfs_area_province_log <- 
-#   lfs_area_province %>% 
-#   dplyr::select(province, mean, area_sum) %>% 
-#   # dplyr::select(mean, business, culture, industry)
-#   dplyr::mutate(
-#     LF = log(mean),
-#     Area = log(area_sum)
-#   ) 
-# # analysis
-# # linear regression
-# summary(lm(LF ~ Area, data = lfs_area_province_log))
-# # plot 
-# # Bayesian regression
-# allometry_bayes <- 
+lfs_area_province_log <-
+  lfs_area_province %>%
+  dplyr::select(province, mean, area_sum) %>%
+  # dplyr::select(mean, business, culture, industry)
+  dplyr::mutate(
+    LF = log(mean),
+    Area = log(area_sum)
+  )
+# analysis
+# linear regression
+allometry_lm <- summary(lm(LF ~ Area, data = lfs_area_province_log))
+# plot fitting curve
+allometry_lm_plot <- 
+  lfs_area_province_log %>% 
+  ggplot(aes(x = Area, y = LF)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(x = "建物面積総和（単位：m^2、対数変換値）", y = "労働力人口（単位：人、対数変換値）") +
+  geom_text_repel(aes(label = province)) +
+  theme_classic()
+# regression diagnosis
+# https://cran.r-project.org/web/packages/qqplotr/vignettes/introduction.html
+# https://www.jstor.org/stable/pdf/24591489.pdf?refreqid=excelsior%3Af6822f4619bc12382faf279533ac6c7b&ab_segments=&origin=&initiator=&acceptTC=1
+allometry_lm_diag <- 
+  lfs_area_province_log %>% 
+  ggplot(aes(sample = LF)) +
+  geom_qq_band(bandType = "ks", mapping = aes(fill = "KS"), alpha = 0.25) +
+  geom_qq_band(bandType = "ts", mapping = aes(fill = "TS"), alpha = 0.25) +
+  geom_qq_band(bandType = "pointwise", mapping = aes(fill = "Normal"), alpha = 0.25) +
+  geom_qq_band(bandType = "boot", mapping = aes(fill = "Bootstrap"), alpha = 0.25) +
+  stat_qq_line() +
+  stat_qq_point() +
+  labs(x = "正規分位数", y = "標本分位数", fill = "バンドタイプ") +
+  scale_fill_discrete("Bandtype") +
+  theme_classic()
+# 
+# Bayesian regression
+# allometry_bayes <-
 #   brms::brm(formula = LF ~ Area,
-#             family = student(link = "identity"),
+#             family = gaussian(link = "identity"),
 #             cores = 4,
 #             backend = "cmdstanr",
 #             data = lfs_area_province_log
 #   )
-# plot(allometry_bayes)
-# WAIC(allometry_bayes)
+# # gtsummary::tbl_regression(allometry_bayes)
+# allometry_bayes_summary_table <- 
+#   sjPlot::tab_model(
+#     allometry_bayes,
+#     show.stat = TRUE,
+#     show.aic = TRUE
+#     )
 # 
-# plot(
-#   conditional_effects(allometry_bayes), 
-#   points =TRUE, 
+# brms_results <- 
+#   plot(
+#   brms::conditional_effects(allometry_bayes),
+#   points =TRUE,
 #   ask = FALSE,
+#   labs(x = "建物面積", y = "労働力人口"),
 #   theme = theme_classic()
 #   )
+
 # ggsave(
 #   "allometry_all.pdf",
-#   width = 150, 
+#   width = 150,
 #   height = 150,
 #   units = "mm"
 #   )
-# 
-# ---- provide.address.all ----
-# This section provides all the adresses of the footprints.
-# (N = Approx. 24,000,000)
-# This needs long computation period (Approx 300 days). 
-# We need collect results every 1 month and restart.
-# 
-# read data
-object_Thailand_sample <-
-  readRDS("object_Thailand_lat_lon.rds") %>%
-  dplyr::mutate(
-    id = c(1:nrow(.))
-    ) %>%
-  dplyr::select(-true_false, -area) %>%
-  sf::st_drop_geometry()
-# read shapefiles
-shp_Thailand <- 
-  sf::st_read(
-    "./shapefiles/THA_adm2.shp",
-    options = "ENCODING=UTF-8", 
-    stringsAsFactors=FALSE
-  ) %>% 
-  # transform all the character into utf-8
-  dplyr::mutate_if(
-    is.character, 
-    enc2utf8
-  )
-# read a function
-# a function to find province, district, and town
-find_city <- 
-  function(sp_polygon = df, lon = lon, lat = lat){
-    # find a polygon containing a certain pair of lon / lat
-    which.row <- 
-      sf::st_contains(
-        sp_polygon, 
-        sf::st_point(
-          c(
-            lon, 
-            lat
-          )
-        ), 
-        sparse = FALSE
-      ) %>%  
-      grep(TRUE, .)
-    # If not, deliver values ("hoge") to avoid malfunction.
-    # We will remove NA by the values later. 
-    if (identical(which.row, integer(0)) == TRUE) {
-      geos <- 
-        data.frame(
-          ID_1 = "hoge", 
-          NAME_1 = "hoge",
-          ID_2 = "hoge", 
-          NAME_2 = "hoge"
-        )
-    }
-    # If exist, obtain information of coordinates
-    else {
-      geos <- 
-        sp_polygon[which.row, ] %>%
-        # transform from factor to character
-        dplyr::mutate_if(
-          is.factor, 
-          as.character
-        ) %>% 
-        # obtain necessary part of the shapefile
-        dplyr::mutate_at(
-          # dplyr::vars(NAME_1, NAME_2, NAME_3), 
-          dplyr::vars(NAME_1), 
-          dplyr::funs(
-            dplyr::if_else(
-              # Is it NA?
-              condition = is.na(.),
-              # if NA, return blank
-              true = "", 
-              # if not, use it
-              false = .
-            )
-          )
-        )
-      # make a dataset of administrative boundaries
-      # Names and IDs are obtained from shapefiles
-      res <- 
-        tibble::data_frame(
-          province_code = geos$ID_1,
-          district_code = geos$ID_2,
-          province_name = geos$NAME_1,
-          district_name = geos$NAME_2,
-        )
-      # for inspecting function movement
-      # print(res)
-      # return results
-      return(res)
-    }
-  }
-# allocate group randomly to separate the footprint data 
-# to stabilise the results, we set the random seed.
-# By sampling randomly, we can use the results partly even though
-# the computation might not be finished all.
-sample(123)
-object_Thailand_sample_group <- 
-  object_Thailand_sample %>% 
-  dplyr::mutate(
-    group = rep(
-      paste0(
-        "group",
-        # adjust the number accordingly.
-        sample(
-          c(1:500000),
-          replace = FALSE
-          )
-        ),
-      each = 200
-      )[c(1:nrow(.))]
-  )
-# obtain the group level to use the following for loop
-# N. of group level:122,381
-group_level <-
-  levels(
-    factor(
-      object_Thailand_sample_group$group
-    )
-  )
-# obtain address by group and object individually
-object_Thailand_sample_group_address <-
-  for(i in 1:length(group_level)){
-      target <- filter(
-      object_Thailand_sample_group,
-      group == group_level[i]
-    )
-    target_address <-
-      target %>%
-      dplyr::mutate(
-        area_info = furrr::future_map2_dfr(
-          .x = lon,
-          .y = lat,
-          ~ try(
-            find_city(
-              sp_polygon = shp_Thailand,
-              lon = .x,
-              lat = .y
-            )
-          )
-        )
-      ) %>%
-      tibble()
-    # save the computation results
-    write_excel_csv(
-      # fix target column
-      bind_cols(
-        id = target_address$id,
-        province_code = target_address$area_info$province_code,
-        province_name = target_address$area_info$province_name,
-        district_code = target_address$area_info$district_code,
-        district_name = target_address$area_info$district_name
-      ) %>%
-        # remove rows containing NA
-        na.omit(),
-      file = paste0("target_address_Thailand/",target_address$group[1], ".csv")
-    )
-    # for larger data, enable the gc() function
-    # gc()
-    # gc()
-  }
-# make a list of generated csv files
-# Reference:
-# https://qiita.com/Ringa_hyj/items/434e3a6794bb7ed8ee14
-target_file_list <-
-  dir(
-    path = "target_address_mekong",
-    pattern = "*.csv"
-    )
-# save the generated csv files
-# NOTE
-# There exist huge number of csv files.
-# vroom::vroom() might not be able to use.
-# Then, use furrr::future_map_dfr() and data.table::fread() instead.
-# vroom::vroom()
-target_address_mekong_combined <-
-  vroom::vroom(
-    paste0(
-      "target_address_mekong/",
-      target_file_list,
-      sep = ""
-      )
-    ) 
-# furrr::future_map_dfr() and data.table::fread()
-target_address_mekong_combined <-
-  furrr::future_map_dfr(
-    paste0(
-      "target_address_mekong/",
-      target_file_list,
-      sep = ""
-    ),
-    data.table::fread
-  )
-readr::write_rds(
-  target_address_mekong_combined, "target_address_mekong_combined.rds")
-
-# END
