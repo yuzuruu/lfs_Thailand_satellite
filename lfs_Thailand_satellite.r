@@ -8,14 +8,12 @@
 # ETSG: 4326
 # license: https://opendatacommons.org/licenses/odbl/
 #################################################################### 
+
 # ---- read.library ----
 library(tidyverse)
 library(sf)
 library(furrr)
 library(rsample)
-library(sjPlot)
-library(ggrepel)
-library(qqplotr)
 # set concurrent computing plan
 # multisession: use CPUs as many as possible
 plan(multisession)
@@ -43,8 +41,8 @@ plan(multisession)
 # read shapefiles by country
 # shp_Thailand <- 
 #   sf::st_read(
-#     "./shapefiles/THA_adm3.shp",
-#     # "./shapefiles/THA_adm1.shp", 
+#     # "./shapefiles/THA_adm3.shp", 
+#     "./shapefiles/THA_adm1.shp", 
 #     options = "ENCODING=UTF-8", 
 #     stringsAsFactors=FALSE
 #   ) %>% 
@@ -184,13 +182,13 @@ plan(multisession)
 # gc()
 # gc()
 # read
-# object_Thailand_sample <-
-#   readRDS("object_Thailand_lat_lon.rds") %>%
+# object_Thailand_sample <- 
+#   readRDS("object_Thailand_lat_lon.rds") %>% 
 #   dplyr::mutate(
 #     id = c(1:nrow(.))) %>%
-#   dplyr::select(-true_false, -area) %>%
-#   sf::st_drop_geometry()
-# 
+#   dplyr::select(-true_false, -area) %>% 
+#   sf::st_drop_geometry() 
+
 # object_Thailand_sample_google <-
 #   readRDS("object_Thailand_lat_lon_google.rds") %>%
 #   dplyr::mutate(
@@ -359,7 +357,7 @@ set.seed(123)
 #     )
 #   )
 # end
-
+# 
 # obtain province name by building
 # NOTICE
 # This process consumes Approx. 1 Min./ sheet (106 observations),
@@ -402,140 +400,217 @@ set.seed(123)
 #     gc()
 #     gc()
 #   }
-# # 
-# ---- top100 ----
-# read the data
-object_Thailand <-
-  readRDS("object_Thailand.rds")
-# sample the largest 100 objects by province
-object_Thailand_top100 <-
-  object_Thailand %>%
-  st_drop_geometry() %>%
-  group_by(province_name) %>%
-  dplyr::arrange(desc(area)) %>%
-  dplyr::slice(1:100)
-write_excel_csv(
-  object_Thailand_top100,
-  "object_Thailand_top100.csv"
-  )
-# summary statistics
-object_Thailand_summary <-
-  object_Thailand %>%
-  dplyr::mutate(
-    area = as.numeric(area)
-  ) %>%
-  sf::st_drop_geometry() %>%
-  dplyr::select(area, id, province_name) %>%
-  dplyr::group_by(province_name) %>%
-  dplyr::summarise(
-    N = n(),
-    Min. = min(area),
-    Mean = mean(area),
-    Median = median(area),
-    Max. = max(area),
-    SD = sd(area),
-    SE = sd(area)/sqrt(n()),
-    area_sum = sum(area)
-  )
-readr::write_excel_csv(
-  object_Thailand_summary,
-  "object_Thailand_entire_summary.csv"
-)
-# ---- read.lfs.data ----
-# read the N. of current labor force
-# variable entitled "year" should be adjusted
-lfs_province <-
-  readr::read_csv("../lfs_Thailand_province/fit_clf_01_summary_x_yhat_pd.csv") %>%
-  dplyr::mutate(
-    # replace all the underscore ("_") into brank (" ").
-    province = stringr::str_replace_all(
-      province,
-      "_", # 空白を
-      " "  # アンダースコアにすべて置き換える
-    )
-  ) %>%
-  # choose requisite data
-  dplyr::filter(
-    parameter == "yhat" & year_month == "2017-10-01"
-  )
-# # join the area data and LFS data
-lfs_area_province <-
-  lfs_province %>%
-  dplyr::left_join(
-    object_Thailand_summary,
-    # largest_buildings_province_wide,
-    by = c("province" = "province_name"),
-    multiple = "all"
-  )
-# for smooth computation, remove the temporary data
-rm(object_Thailand)
 # 
-# ---- analysis.allometry ----
-# logarithmic transformation
-lfs_area_province_log <-
-  lfs_area_province %>%
-  dplyr::select(province, mean, area_sum) %>%
-  # dplyr::select(mean, business, culture, industry)
-  dplyr::mutate(
-    LF = log(mean),
-    Area = log(area_sum)
-  )
-# analysis
-# linear regression
-allometry_lm <- summary(lm(LF ~ Area, data = lfs_area_province_log))
-# plot fitting curve
-allometry_lm_plot <- 
-  lfs_area_province_log %>% 
-  ggplot(aes(x = Area, y = LF)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  labs(x = "建物面積総和（単位：m^2、対数変換値）", y = "労働力人口（単位：人、対数変換値）") +
-  geom_text_repel(aes(label = province)) +
-  theme_classic()
-# regression diagnosis
-# https://cran.r-project.org/web/packages/qqplotr/vignettes/introduction.html
-# https://www.jstor.org/stable/pdf/24591489.pdf?refreqid=excelsior%3Af6822f4619bc12382faf279533ac6c7b&ab_segments=&origin=&initiator=&acceptTC=1
-allometry_lm_diag <- 
-  lfs_area_province_log %>% 
-  ggplot(aes(sample = LF)) +
-  geom_qq_band(bandType = "ks", mapping = aes(fill = "KS"), alpha = 0.25) +
-  geom_qq_band(bandType = "ts", mapping = aes(fill = "TS"), alpha = 0.25) +
-  geom_qq_band(bandType = "pointwise", mapping = aes(fill = "Normal"), alpha = 0.25) +
-  geom_qq_band(bandType = "boot", mapping = aes(fill = "Bootstrap"), alpha = 0.25) +
-  stat_qq_line() +
-  stat_qq_point() +
-  labs(x = "正規分位数", y = "標本分位数", fill = "バンドタイプ") +
-  scale_fill_discrete("Bandtype") +
-  theme_classic()
+# ---- experiment ----
+# EXPERIMENTAL
+# NO USE
+# This procedure needs a lot of memory. Sometimes it does not finish correctly.
+# # set concurrent computing plan
+# # multisession: use CPUs as many as possible
+# plan(multisession)
+# # obtain address from shapefiles
+# object_Thailand_address <-
+#   object_Thailand_sample %>%
+#   # obtain area information from the shapefile
+#   dplyr::mutate(
+#     # using furrr() package enables us to concurrent computing!!
+#     # It raises up computation period dramatically!!
+#     # In detail, refer to the following page.
+#     # https://blog.atusy.net/2018/12/06/furrr/
+#     # Previously, we used to use the following code with purrr::map2_dfr()
+#     # area_info = purrr::map2_dfr(
+#     area_info = furrr::future_map2(
+#       .x = lon,
+#       .y = lat,
+#       ~
+#         find_city(
+#           sp_polygon = shp_Thailand,
+#           lon = .x,
+#           lat = .y
+#           )
+#       )
+#     ) %>%
+#   tibble()
+# object_Thailand_address
+# object_Thailand_address$area_info
 # 
-# Bayesian regression
-# allometry_bayes <-
-#   brms::brm(formula = LF ~ Area,
-#             family = gaussian(link = "identity"),
-#             cores = 4,
-#             backend = "cmdstanr",
-#             data = lfs_area_province_log
-#   )
-# # gtsummary::tbl_regression(allometry_bayes)
-# allometry_bayes_summary_table <- 
-#   sjPlot::tab_model(
-#     allometry_bayes,
-#     show.stat = TRUE,
-#     show.aic = TRUE
-#     )
 # 
-# brms_results <- 
-#   plot(
-#   brms::conditional_effects(allometry_bayes),
-#   points =TRUE,
-#   ask = FALSE,
-#   labs(x = "建物面積", y = "労働力人口"),
-#   theme = theme_classic()
-#   )
+# saveRDS(object_Thailand_address, "object_Thailand_address.rds")
+# # rm(object_Thailand_address)
+# gc()
+# gc()
+# 
+# object_Thailand_address <- readRDS("object_Thailand_address.rds")
+# 
+# 
+# 
+# # competed!!
+# object_Thailand <- 
+#   bind_cols(
+#     object_Thailand_address$area_info, 
+#     object_Thailand_data
+#     ) %>% 
+#   select(-area_info, -true_false)
+# # save the completed data
+# saveRDS(object_Thailand, "object_Thailand.rds")
 
-# ggsave(
-#   "allometry_all.pdf",
-#   width = 150,
-#   height = 150,
-#   units = "mm"
-#   )
+
+object_Thailand_sample <-
+  readr::read_rds("object_Thailand_lat_lon.rds") %>%
+  dplyr::mutate(
+    id = c(1:nrow(.))) %>%
+  dplyr::select(-true_false, -area) %>%
+  sf::st_drop_geometry()
+
+
+shp_Thailand <- 
+  sf::st_read(
+    "./shapefiles/THA_adm3.shp", 
+    options = "ENCODING=UTF-8", 
+    stringsAsFactors=FALSE
+  ) %>% 
+  dplyr::mutate_if(
+    is.character, 
+    enc2utf8
+  )
+
+find_city <- 
+  function(sp_polygon = df, lon = lon, lat = lat){
+    # find a polygon containing a certain pair of lon / lat
+    which.row <- 
+      sf::st_contains(
+        sp_polygon, 
+        sf::st_point(
+          c(
+            lon, 
+            lat
+          )
+        ), 
+        sparse = FALSE
+      ) %>%  
+      grep(TRUE, .)
+    # If not, leave a warning message
+    # -> deliver values ("hoge") to avoid malfunction.
+    # We will remove NA by the values later. 
+    if (identical(which.row, integer(0)) == TRUE) {
+      # Original code provides the following message.
+      # message("指定した座標がポリゴンに含まれません")
+      geos <- 
+        data.frame(
+          ID_1 = "hoge", 
+          NAME_1 = "hoge",
+          ID_2 = "hoge", 
+          NAME_2 = "hoge",
+          ID_3 = "hoge", 
+          NAME_3 = "hoge"
+        )
+    }
+    # If exist, obtain information of coordinates
+    else {
+      geos <- 
+        sp_polygon[which.row, ] %>%
+        # transform from factor to character
+        dplyr::mutate_if(
+          is.factor, 
+          as.character
+        ) %>% 
+        # obtain necessary part of the shapefile
+        dplyr::mutate_at(
+          # dplyr::vars(NAME_1, NAME_2, NAME_3), 
+          dplyr::vars(NAME_1), 
+          dplyr::funs(
+            dplyr::if_else(
+              # Is it NA?
+              condition = is.na(.),
+              # if NA, return blank
+              true = "", 
+              # if not, use it
+              false = .
+            )
+          )
+        )
+      # make a dataset of administrative boundaries
+      # Names and IDs are obtained from shapefiles
+      res <- 
+        tibble::data_frame(
+          province_code = geos$ID_1,
+          district_code = geos$ID_2,
+          subdistrict_code = geos$ID_3,
+          province_name = geos$NAME_1,
+          district_name = geos$NAME_2,
+          subdistrict_name = geos$NAME_3
+        )
+      # for inspecting function movement
+      # print(res)
+      # return results
+      return(res)
+    }
+  }
+set.seed(123)
+object_Thailand_sample_group <- 
+  object_Thailand_sample %>% 
+  dplyr::mutate(
+    group = rep(paste0("group",sample(c(1:500000), replace = FALSE)),each = 200)[c(1:nrow(.))]
+  ) 
+# 122381 in total
+group_level <-
+  levels(
+    factor(
+      object_Thailand_sample_group$group
+    )
+  )
+length(group_level)
+group_level[53500]
+
+
+# obtain address by group and object individually
+object_Thailand_sample_group_address <-
+  # for(i in 55200:length(group_level)){
+  for(i in 52173:60000){
+      target <- filter(
+      object_Thailand_sample_group,
+      group == group_level[i]
+    )
+    target_address <-
+      target %>%
+      dplyr::mutate(
+        area_info = furrr::future_map2_dfr(
+          .x = lon,
+          .y = lat,
+          ~ try(
+            find_city(
+              sp_polygon = shp_Thailand,
+              lon = .x,
+              lat = .y
+            )
+          )
+        )
+      ) %>%
+      tibble()
+    # save the computation results
+    write_excel_csv(
+      # fix target column
+      bind_cols(
+        id = target_address$id,
+        province_code = target_address$area_info$province_code,
+        province_name = target_address$area_info$province_name,
+        district_code = target_address$area_info$district_code,
+        district_name = target_address$area_info$district_name,
+        subdistrict_code = target_address$area_info$subdistrict_code,
+        subdistrict_name = target_address$area_info$subdistrict_name
+      ) %>%
+        # remove rows containing NA
+        na.omit(),
+      file = paste0("target_address_Thailand/",target_address$group[1], ".csv")
+    )
+    # for larger data, enable the gc() function
+    gc()
+    gc()
+  }
+
+
+
+
+
+
+
