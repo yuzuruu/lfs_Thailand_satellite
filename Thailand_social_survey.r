@@ -13,14 +13,14 @@ library(osmdata)
 library(ggmap)
 library(ggsci)
 # library(cmdstanr)
-library(furrr)
-library(future)
-future::plan(multisession, workers = 16)
+# library(furrr)
+# library(future)
+# future::plan(multisession, workers = 16)
 # 
 # ----- read.data -----
 # shapefiles (province)
 Thailand_map_01 <- 
-  sf::read_sf("gadm41_THA_1.shp") %>% 
+  sf::read_sf("./shapefiles/THA_adm1.shp") %>% 
   dplyr::mutate(
     # First, we obtain the gravity
     centroid = sf::st_centroid(geometry),
@@ -32,7 +32,7 @@ Thailand_map_01 <-
   ) 
 # shapefiles (district)
 Thailand_map_02 <- 
-  sf::read_sf("gadm41_THA_2.shp") %>% 
+  sf::read_sf("./shapefiles/THA_adm2.shp") %>% 
   dplyr::mutate(
     # First, we obtain the gravity
     centroid = sf::st_centroid(geometry),
@@ -44,7 +44,7 @@ Thailand_map_02 <-
   ) 
 # shapefiles (subdistrict)
 Thailand_map_03 <- 
-  sf::read_sf("gadm41_THA_3.shp") %>% 
+  sf::read_sf("./shapefiles/THA_adm3.shp") %>% 
   dplyr::mutate(
     # First, we obtain the gravity
     centroid = sf::st_centroid(geometry),
@@ -57,7 +57,7 @@ Thailand_map_03 <-
 
 # make a boundary box for 
 Thailand_bbox <- 
-  sf::read_sf("gadm41_THA_1.shp") %>% 
+  sf::read_sf("./shapefiles/THA_adm1.shp") %>% 
   dplyr::mutate(
     # First, we obtain the gravity
     centroid = sf::st_centroid(geometry),
@@ -72,34 +72,48 @@ Thailand_bbox <-
 # 
 wgseqproj <- "EPSG:4087"
 wgs84 <- "EPSG:4326"
-object_Thailand_all <- 
-  readr::read_rds("object_Thailand_all.rds") %>% 
-  dplyr::mutate(
-    # First, we obtain the gravity
-    centroid = sf::st_centroid(geometry),
-    lon = st_coordinates(centroid)[,1],
-    # y
-    lat = st_coordinates(centroid)[,2],
-    id_thailand = c(1:nrow(.))
-  ) %>% 
-  dplyr::select(-geometry) %>% 
-  st_as_sf() %>% 
-  sf::st_transform(wgseqproj) 
-# shapefiles
-Thailand_map <- 
-  sf::read_sf("gadm41_THA_1.shp") %>% 
-  sf::st_as_sf() %>% 
-  sf::st_transform(wgseqproj)
-Thailand_point <- 
-  object_Thailand_all %>% 
-  sf::st_as_sf() %>% 
-  sf::st_transform(wgseqproj) %>% 
-  dplyr::tibble()
+# object_Thailand_all <- readr::read_rds("object_Thailand_all.rds") 
+
+# object_Thailand_all <-
+#   # object_Thailand_all %>%
+#   readr::read_rds("object_Thailand_all.rds") %>%
+#   dplyr::mutate(
+#     # First, we obtain the gravity
+#     centroid = sf::st_centroid(geometry),
+#     lon = st_coordinates(centroid)[,1],
+#     # y
+#     lat = st_coordinates(centroid)[,2],
+#     id_thailand = c(1:nrow(.))
+#   ) %>%
+#   dplyr::select(-geometry) %>%
+#   st_as_sf() %>%
+#   sf::st_transform(wgseqproj)
+# # shapefiles
+# Thailand_map <-
+#   sf::read_sf("THA_adm1.shp") %>%
+#   sf::st_as_sf() %>%
+#   sf::st_transform(wgseqproj)
+# Thailand_point <-
+#   object_Thailand_all %>%
+#   sf::st_as_sf() %>%
+#   sf::st_transform(wgseqproj) 
+# 
+# rm(object_Thailand_all)
+# gc(reset = TRUE)
+# gc(reset = TRUE)
+
+# readr::write_rds(Thailand_map, "Thailand_map.rds")
+# readr::write_rds(Thailand_point, "Thailand_point.rds")
+Thailand_map <- readr::read_rds("Thailand_map.rds")
+Thailand_point <- readr::read_rds("Thailand_point.rds")
+
+# Thailand_point_sub <- Thailand_point %>% dplyr::sample_n(100)
+
 # grid data settings
 # quadrat size
 cellsize <- 
   data.frame(
-    cellsize = c(250, 500, 1000, 2500)
+    cellsize = c(500, 1000, 2500)
   ) %>% 
   dplyr::mutate(
     index = factor(order(cellsize))
@@ -119,7 +133,7 @@ target_location <-
   nest() %>% 
   # make grid data
   dplyr::mutate(
-    grid = furrr::future_map(
+    grid = purrr::map(
       data,
       ~
         st_make_grid(
@@ -140,26 +154,25 @@ target_location <-
           lat = st_coordinates(centroid)[,2],
           id_grid = c(1:nrow(.))
         ) %>% 
-        dplyr::select(-centroid) ,
-      .options = furrr_options(seed = 123)
+        dplyr::select(-centroid) 
     )
   ) %>% 
   dplyr::mutate(
-    obtain_location = furrr::future_map(
+    obtain_location = purrr::map(
       grid,
       ~
         sf::st_intersects(
-          object_Thailand %>% 
+          # object_Thailand_all %>% 
+          Thailand_point %>% 
             sf::st_transform(4326),
           .
         ) %>% 
         as.numeric() %>% 
-        dplyr::tibble(location = .) ,
-      .options = furrr_options(seed = 123)
+        dplyr::tibble(location = .) 
     )
   ) %>% 
   dplyr::mutate(
-    obtain_location_complete = furrr::future_map(
+    obtain_location_complete = purrr::map(
       obtain_location,
       ~
         dplyr::left_join(
@@ -174,12 +187,11 @@ target_location <-
         ) %>% 
         dplyr::mutate(
           id_grid = factor(id_grid),
-          area = as.numeric(area)),
-      .options = furrr_options(seed = 123)
+          area = as.numeric(area))
     ) 
   ) %>% 
   dplyr::mutate(
-    summary = furrr::future_map(
+    summary = purrr::map(
       obtain_location_complete,
       ~
         tibble(.) %>% 
@@ -194,8 +206,7 @@ target_location <-
         ) %>% 
         dplyr::mutate(
           across(contains("area"), \(x)replace_na(x,0))
-        ) ,
-      .options = furrr_options(seed = 123)
+        ) 
     )
   )
 # save the results
@@ -204,21 +215,12 @@ readr::write_rds(
   "target_location.rds"
 )
 
-
-target_location_50 <- readr::read_rds("target_location_50.rds")
-target_location_100 <- readr::read_rds("target_location_100.rds")
-target_location_200_5000 <- readr::read_rds("target_location_200_5000.rds")
-
-target_location <- 
-  target_location_50 %>% 
-  dplyr::bind_rows(target_location_100) %>% 
-  dplyr::bind_rows(target_location_200_5000) %>% 
-  ungroup() %>% 
-  dplyr::mutate(
-    index = c(1:nrow(.)) %>% factor()
-  ) %>% 
-  group_by(index)  
-
+target_location$grid[[1]]
+target_location$obtain_location[[1]]
+target_location$obtain_location[[2]]
+target_location$obtain_location[[3]]
+target_location$obtain_location_complete[[1]]
+target_location$summary[[1]]
 
 # 
 # ----- obtain.100.targets -----
